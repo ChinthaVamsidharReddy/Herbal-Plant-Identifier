@@ -8,7 +8,7 @@ class TFLiteService {
 
   Future<void> initialize() async {
     if (_isInitialized) return;
-    
+
     try {
       _interpreter = await Interpreter.fromAsset('assets/herbal_model.tflite');
       _isInitialized = true;
@@ -27,32 +27,40 @@ class TFLiteService {
       // Load and preprocess the image
       final imageBytes = await imageFile.readAsBytes();
       final image = img.decodeImage(imageBytes);
-      
+
       if (image == null) {
         throw Exception('Failed to decode image');
       }
 
       // Resize image to 224x224 (common input size for many models)
       final resizedImage = img.copyResize(image, width: 224, height: 224);
-      
+
       // Convert to float array and normalize
-      final input = List.generate(1, (index) => List.generate(
-        224, (y) => List.generate(224, (x) {
-          final pixel = resizedImage.getPixel(x, y);
-          return [
-            pixel.r / 255.0,
-            pixel.g / 255.0,
-            pixel.b / 255.0,
-          ];
-        }),
-      ));
+      final input = List.generate(
+        1,
+        (index) => List.generate(
+          224,
+          (y) => List.generate(224, (x) {
+            final pixel = resizedImage.getPixel(x, y);
+            return [pixel.r / 255.0, pixel.g / 255.0, pixel.b / 255.0];
+          }),
+        ),
+      );
 
       // Prepare output tensor as 2D list [1, 40]
-      final output = List.generate(1, (_) => List.filled(40, 0.0));
+      // final output = List.generate(1, (_) => List.filled(40, 0.0));
+      // Get output shape dynamically
+      var outputShape = _interpreter!.getOutputTensor(0).shape;
+      int numClasses = outputShape.last;
+
+      final output = List.generate(1, (_) => List.filled(numClasses, 0.0));
+
+      _interpreter!.run(input, output);
+      final outputList = output[0];
 
       // Run inference
-      _interpreter!.run(input, output);
-      final outputList = output[0]; // Get the first row
+      // _interpreter!.run(input, output);
+      // final outputList = output[0]; // Get the first row
 
       // Find the class with highest probability and its confidence
       int maxIndex = 0;
@@ -82,4 +90,4 @@ class TFLiteService {
     _interpreter?.close();
     _isInitialized = false;
   }
-} 
+}
